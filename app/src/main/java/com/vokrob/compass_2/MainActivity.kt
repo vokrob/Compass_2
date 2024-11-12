@@ -15,8 +15,11 @@ import androidx.appcompat.app.AppCompatActivity
 class MainActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var tvDegree: TextView
     private lateinit var imDinamic: ImageView
-    var manager: SensorManager? = null
-    var current_degree: Int = 0
+    private var manager: SensorManager? = null
+    private var current_degree: Int = 0
+    private var gravity: FloatArray? = null
+    private var geomagnetic: FloatArray? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -29,7 +32,12 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         super.onResume()
         manager?.registerListener(
             this,
-            manager?.getDefaultSensor(Sensor.TYPE_ORIENTATION),
+            manager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+            SensorManager.SENSOR_DELAY_GAME
+        )
+        manager?.registerListener(
+            this,
+            manager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD),
             SensorManager.SENSOR_DELAY_GAME
         )
     }
@@ -39,20 +47,34 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         manager?.unregisterListener(this)
     }
 
-    override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    override fun onSensorChanged(p0: SensorEvent?) {
-        val degree: Int = p0?.values?.get(0)?.toInt()!!
-        tvDegree.text = degree.toString()
-        val rotationAnim = RotateAnimation(
-            current_degree.toFloat(), (-degree).toFloat(),
-            Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f
-        )
-        rotationAnim.duration = 210
-        rotationAnim.fillAfter = true
-        current_degree = -degree
-        imDinamic.startAnimation(rotationAnim)
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
+            gravity = event.values
+        } else if (event?.sensor?.type == Sensor.TYPE_MAGNETIC_FIELD) {
+            geomagnetic = event.values
+        }
+
+        if (gravity != null && geomagnetic != null) {
+            val R = FloatArray(9)
+            val I = FloatArray(9)
+            if (SensorManager.getRotationMatrix(R, I, gravity, geomagnetic)) {
+                val orientation = FloatArray(3)
+                SensorManager.getOrientation(R, orientation)
+                val degree: Float = Math.toDegrees(orientation[0].toDouble()).toFloat()
+                tvDegree.text = degree.toInt().toString()
+
+                val rotationAnim = RotateAnimation(
+                    current_degree.toFloat(), (-degree).toFloat(),
+                    Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f
+                )
+                rotationAnim.duration = 210
+                rotationAnim.fillAfter = true
+                current_degree = -degree.toInt()
+                imDinamic.startAnimation(rotationAnim)
+            }
+        }
     }
 }
 
